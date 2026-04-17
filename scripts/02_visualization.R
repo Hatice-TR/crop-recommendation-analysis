@@ -42,4 +42,12 @@ ggplot(df, aes(x = ph, y = rainfall, color = label)) +
   theme(legend.position = "bottom",
         legend.text = element_text(size = 7))
 
+
+
+
+git status
+
+
+
+
 ggsave("output/03_ph_yagis.png", width = 9, height = 7)

@@ -1,0 +1,132 @@
+---
+title: "Crop Recommendation Analysis"
+author: "Hatice Eryilmaz"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## Proje Hakkinda
+
+Bu analiz, toprak ozellikleri ve iklim verileri kullanilarak
+22 farkli tarim urunu icin oneri sistemi gelistirmektedir.
+Veri seti Kaggle'dan alinmistir.
+
+**Kullanilan degiskenler:**
+
+- N, P, K: Toprak besin elementleri
+- temperature: Sicaklik (C)
+- humidity: Nem (%)
+- ph: Toprak pH degeri
+- rainfall: Yagis (mm)
+
+---
+
+## 1. Veri Tanitimi
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(randomForest)
+library(caret)
+library(corrplot)
+
+df <- read.csv("data/Crop_recommendation.csv")
+df$label <- as.factor(df$label)
+```
+
+Veri seti **`r nrow(df)` satir** ve **`r ncol(df)` sutun** icermektedir.
+Toplam **`r length(unique(df$label))` farkli urun** bulunmaktadir.
+
+```{r ozet}
+summary(df[, 1:4])
+```
+
+---
+
+## 2. Urun Dagilimi
+
+```{r dagilim, fig.width=8, fig.height=6}
+ggplot(df, aes(x = reorder(label, label, length))) +
+  geom_bar(fill = "#2ecc71") +
+  coord_flip() +
+  labs(title = "Urun Basina Kayit Sayisi",
+       x = "Urun", y = "Adet") +
+  theme_minimal()
+```
+
+Her urunden esit sayida (100) kayit bulunmaktadir.
+Bu dengeli veri seti, modelin adil ogrenmes ini saglar.
+
+---
+
+## 3. Sicaklik Dagilimi
+
+```{r sicaklik, fig.width=8, fig.height=6}
+ggplot(df, aes(x = reorder(label, temperature, median),
+               y = temperature, fill = label)) +
+  geom_boxplot(show.legend = FALSE) +
+  coord_flip() +
+  labs(title = "Urunlere Gore Sicaklik Dagilimi",
+       x = "Urun", y = "Sicaklik (C)") +
+  theme_minimal()
+```
+
+Papaya ve mango en sicak iklimlerde yetisirken,
+chickpea ve kidneybeans serin iklimleri tercih etmektedir.
+
+---
+
+## 4. Korelasyon Analizi
+
+```{r korelasyon, fig.width=7, fig.height=7}
+df_numeric <- df %>% select(-label)
+cor_matrix <- cor(df_numeric)
+
+corrplot(cor_matrix,
+         method = "color",
+         type = "upper",
+         addCoef.col = "black",
+         tl.col = "black",
+         tl.srt = 45,
+         mar = c(0,0,1,0))
+```
+
+En guclu iliski P ve K arasinda gorulmektedir (r = 0.74).
+Diger degiskenler buyuk olcude birbirinden bagimsizdir.
+
+---
+
+## 5. Random Forest Modeli
+
+```{r model, message=FALSE, warning=FALSE}
+set.seed(42)
+index <- createDataPartition(df$label, p = 0.8, list = FALSE)
+train <- df[index, ]
+test  <- df[-index, ]
+
+model <- randomForest(label ~ ., data = train, ntree = 500,
+                      importance = TRUE)
+
+predictions <- predict(model, test)
+accuracy <- mean(predictions == test$label)
+cat("Model Dogrulugu:", round(accuracy * 100, 2), "%")
+```
+
+---
+
+## 6. Degisken Onemi
+
+```{r onem, fig.width=8, fig.height=6}
+varImpPlot(model, main = "Degisken Onem Grafigi")
+```
+
+Rainfall ve humidity, modelin tahmin gucune en fazla
+katkida bulunan degiskenlerdir.
+
+---
+
+## Sonuc
+
+- Veri seti 2200 kayit ve 22 urun icermektedir
+- Random Forest modeli **%`r round(accuracy*100,2)`** dogruluk elde etmistir
+- En onemli degisken: **rainfall**
+- P ve K arasinda guclu pozitif korelasyon (0.74) tespit edilmistir
